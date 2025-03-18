@@ -485,7 +485,7 @@ class LLM_CGPR_Trainer:
             llm_path,
             torch_dtype=torch.bfloat16,
             # load_in_8bit=True,
-            device_map=device_map,  
+            device_map=device_map,
         )
         gradient_accumulation_steps = (
             self.dic_agent_conf["BATCH_SIZE"] // self.dic_agent_conf["MINI_BATCH_SIZE"]
@@ -808,7 +808,7 @@ class LLM_CGPR_Trainer:
 
 class LLM_Inference:
     def __init__(
-        self, dic_agent_conf, dic_traffic_env_conf, dic_path, roadnet, trafficflow
+        self, dic_agent_conf, dic_traffic_env_conf, dic_path, roadnet='', trafficflow=''
     ):
         self.dic_agent_conf = dic_agent_conf
         self.dic_traffic_env_conf = dic_traffic_env_conf
@@ -1106,7 +1106,7 @@ class LLM_Inference:
 
 class LLM_Inference_VLLM:
     def __init__(
-        self, dic_agent_conf, dic_traffic_env_conf, dic_path, roadnet, trafficflow
+        self, dic_agent_conf, dic_traffic_env_conf, dic_path, roadnet='', trafficflow=''
     ):
         self.dic_agent_conf = dic_agent_conf
         self.dic_traffic_env_conf = dic_traffic_env_conf
