@@ -2,6 +2,7 @@
 Run the Fixed-Time model
 On JiNan and HangZhou real data
 """
+
 from utils.utils import oneline_wrapper
 import os
 import time
@@ -30,19 +31,30 @@ def main(in_args):
     if in_args.dataset == 'jinan':
         count = 3600
         road_net = "3_4"
-        traffic_file_list = ["anon_3_4_jinan_real.json", "anon_3_4_jinan_real_2000.json",
-                             "anon_3_4_jinan_real_2500.json", "anon_3_4_jinan_synthetic_24000_60min.json",
-                             "anon_3_4_jinan_synthetic_24h_6000.json"]
+        traffic_file_list = [
+            "anon_3_4_jinan_real.json",
+            "anon_3_4_jinan_real_2000.json",
+            "anon_3_4_jinan_real_2500.json",
+            "anon_3_4_jinan_synthetic_24000_60min.json",
+            "anon_3_4_jinan_synthetic_24h_6000.json",
+        ]
         template = "Jinan"
     elif in_args.dataset == 'hangzhou':
         count = 3600
         road_net = "4_4"
-        traffic_file_list = ["anon_4_4_hangzhou_real.json", "anon_4_4_hangzhou_real_5816.json", "anon_4_4_hangzhou_synthetic_24000_60min.json"]
+        traffic_file_list = [
+            "anon_4_4_hangzhou_real.json",
+            "anon_4_4_hangzhou_real_5816.json",
+            "anon_4_4_hangzhou_synthetic_24000_60min.json",
+        ]
         template = "Hangzhou"
     elif in_args.dataset == 'newyork_28x7':
         count = 3600
         road_net = "28_7"
-        traffic_file_list = ["anon_28_7_newyork_real_double.json", "anon_28_7_newyork_real_triple.json"]
+        traffic_file_list = [
+            "anon_28_7_newyork_real_double.json",
+            "anon_28_7_newyork_real_triple.json",
+        ]
         template = "NewYork"
 
     if in_args.prompt == "Commonsense":
@@ -77,24 +89,18 @@ def main(in_args):
     dic_traffic_env_conf_extra = {
         "NUM_AGENTS": num_intersections,
         "NUM_INTERSECTIONS": num_intersections,
-
         "MODEL_NAME": f"{in_args.model}-{dic_agent_conf_extra['GPT_VERSION']}",
         "PROJECT_NAME": in_args.proj_name,
         "RUN_COUNTS": count,
         "NUM_ROW": NUM_ROW,
         "NUM_COL": NUM_COL,
-
         "TRAFFIC_FILE": in_args.traffic_file,
         "ROADNET_FILE": "roadnet_{0}.json".format(road_net),
-
         "LIST_STATE_FEATURE": [
             "cur_phase",
             "traffic_movement_pressure_queue",
         ],
-
-        "DIC_REWARD_INFO": {
-            "pressure": 0
-        },
+        "DIC_REWARD_INFO": {"pressure": 0},
     }
 
     if in_args.eightphase:
@@ -106,42 +112,74 @@ def main(in_args):
             5: [1, 1, 0, 0, 0, 0, 0, 0],
             6: [0, 0, 1, 1, 0, 0, 0, 0],
             7: [0, 0, 0, 0, 0, 0, 1, 1],
-            8: [0, 0, 0, 0, 1, 1, 0, 0]
+            8: [0, 0, 0, 0, 1, 1, 0, 0],
         }
-        dic_traffic_env_conf_extra["PHASE_LIST"] = ['WT_ET', 'NT_ST', 'WL_EL', 'NL_SL',
-                                                    'WL_WT', 'EL_ET', 'SL_ST', 'NL_NT']
+        dic_traffic_env_conf_extra["PHASE_LIST"] = [
+            'WT_ET',
+            'NT_ST',
+            'WL_EL',
+            'NL_SL',
+            'WL_WT',
+            'EL_ET',
+            'SL_ST',
+            'NL_NT',
+        ]
         dic_agent_conf_extra["FIXED_TIME"] = [30, 30, 30, 30, 30, 30, 30, 30]
 
     else:
         dic_agent_conf_extra["FIXED_TIME"] = [30, 30, 30, 30]
 
-    dic_traffic_env_conf_extra["NUM_AGENTS"] = dic_traffic_env_conf_extra["NUM_INTERSECTIONS"]
+    dic_traffic_env_conf_extra["NUM_AGENTS"] = dic_traffic_env_conf_extra[
+        "NUM_INTERSECTIONS"
+    ]
     dic_path_extra = {
-        "PATH_TO_MODEL": os.path.join("model", in_args.memo, in_args.traffic_file + "_" +
-                                      time.strftime('%m_%d_%H_%M_%S', time.localtime(time.time()))),
-        "PATH_TO_WORK_DIRECTORY": os.path.join("records", in_args.memo, in_args.traffic_file + "_" +
-                                               time.strftime('%m_%d_%H_%M_%S', time.localtime(time.time()))),
-        "PATH_TO_DATA": os.path.join("data", template, str(road_net))
+        "PATH_TO_MODEL": os.path.join(
+            "model",
+            in_args.memo,
+            in_args.traffic_file
+            + "_"
+            + time.strftime('%m_%d_%H_%M_%S', time.localtime(time.time())),
+        ),
+        "PATH_TO_WORK_DIRECTORY": os.path.join(
+            "records",
+            in_args.memo,
+            in_args.traffic_file
+            + "_"
+            + time.strftime('%m_%d_%H_%M_%S', time.localtime(time.time())),
+        ),
+        "PATH_TO_DATA": os.path.join("data", template, str(road_net)),
     }
 
     if not os.path.exists("./GPT_logs"):
         os.makedirs("./GPT_logs")
 
     if in_args.multi_process:
-        process_list.append(Process(target=oneline_wrapper,
-                                    args=(dic_agent_conf_extra,
-                                          dic_traffic_env_conf_extra, dic_path_extra,
-                                          f'{template}-{road_net}', in_args.traffic_file.split(".")[0]))
-                            )
+        process_list.append(
+            Process(
+                target=oneline_wrapper,
+                args=(
+                    dic_agent_conf_extra,
+                    dic_traffic_env_conf_extra,
+                    dic_path_extra,
+                    f'{template}-{road_net}',
+                    in_args.traffic_file.split(".")[0],
+                ),
+            )
+        )
     else:
-        oneline_wrapper(dic_agent_conf_extra, dic_traffic_env_conf_extra, dic_path_extra,
-                        f'{template}-{road_net}', in_args.traffic_file.split(".")[0])
+        oneline_wrapper(
+            dic_agent_conf_extra,
+            dic_traffic_env_conf_extra,
+            dic_path_extra,
+            f'{template}-{road_net}',
+            in_args.traffic_file.split(".")[0],
+        )
 
     if in_args.multi_process:
         i = 0
         list_cur_p = []
         for p in process_list:
-            if len(list_cur_p) < in_args.workers:
+            if len(list_cur_p) < in_args.worker s:
                 print(i)
                 p.start()
                 list_cur_p.append(p)

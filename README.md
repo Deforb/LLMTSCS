@@ -15,12 +15,12 @@
 
 <p align="center">
 
-| **[1 Introduction](#introduction)** 
+| **[1 Introduction](#introduction)**
 | **[2 Requirements](#requirements)**
 | **[3 Usage](#usage)**
 | **[4 Baselines](#baselines)**
-| **[5 LightGPT Training](#lightgpt-training)** 
-| **[6 Code structure](#code-structure)** 
+| **[5 LightGPT Training](#lightgpt-training)**
+| **[6 Code structure](#code-structure)**
 | **[7 Datasets](#datasets)**
 | **[8 Citation](#citation)**
 | **[Website](https://gungnir2099.github.io/LLMLight-Page/)** |
@@ -29,7 +29,7 @@
 
 <a id="introduction"></a>
 
-## 🎉 News 
+## 🎉 News
 
 - [x] 🚀🔥 [2024.11] 🎯🎯📢📢 Exciting News! We are thrilled to announce that our 🌟**LLMLight**🌟 has been accepted by **KDD'2025**! 🎉🎉🎉 Thanks to all the team members 🤗
 - [x] 🚀🔥 [2024.11] 🎯🎯📢📢 Exciting Update! We’re thrilled to announce that our LightGPT family has expanded with **four new members** now available on [HuggingFace](https://huggingface.co/collections/usail-hkust/llmlight-lightgpt-673ac5a619cbbe309165b56d). These models include fine-tuned backbones based on **Qwen2** and **Llama3**. Check them out!
@@ -44,11 +44,12 @@ The code structure is based on [Efficient_XLight](https://github.com/LiangZhang1
 
 ![workflow](./media/Workflow.png)
 
-### Watch Our Demo Video Here:
-https://github.com/usail-hkust/LLMTSCS/assets/62106026/90567f61-5d58-4dac-8c8e-836a421f3ff9
+### Watch Our Demo Video Here
 
+<https://github.com/usail-hkust/LLMTSCS/assets/62106026/90567f61-5d58-4dac-8c8e-836a421f3ff9>
 
 <a id="requirements"></a>
+
 ## 2 Requirements
 
 `python>=3.9`,`tensorflow-cpu==2.8.0`, `cityflow`, `pandas==1.5.0`, `numpy==1.26.2`, `wandb`,  `transformers==4.45.0`, `peft==0.7.1`, `accelerate==0.27.2`, `datasets==2.16.1`, `fire`, `vllm==0.6.2`
@@ -62,11 +63,13 @@ https://github.com/usail-hkust/LLMTSCS/assets/62106026/90567f61-5d58-4dac-8c8e-8
 Parameters are well-prepared, and you can run the code directly.
 
 - For example, to run `Advanced-MPLight`:
+
 ```shell
 python run_advanced_mplight.py --dataset hangzhou \
                                --traffic_file anon_4_4_hangzhou_real.json \
                                --proj_name TSCS
 ```
+
 - To run GPT-3.5/GPT-4 with LLMLight, you need to set your key in `./models/chatgpt.py`:
 
 ```python
@@ -85,6 +88,7 @@ python run_chatgpt.py --prompt Commonsense \
                       --gpt_version gpt-4 \
                       --proj_name TSCS
 ```
+
 You can either choose `Commonsense` or `Wait Time Forecast` as the `prompt` argument.
 
 - To run with open-sourced LLMs (or LightGPT) and LLMLight:
@@ -104,24 +108,37 @@ python run_open_LLM_with_vllm.py --llm_model LLM_MODEL_NAME_ONLY_FOR_LOG \
                                  --traffic_file anon_4_4_hangzhou_real.json \
                                  --proj_name TSCS
 ```
+
 <a id="baselines"></a>
 
 ## 4 Baselines
 
 - **Heuristic Methods**:
-    - FixedTime, Maxpressure, EfficientMaxPressure
+  - FixedTime, Maxpressure, EfficientMaxPressure
 - **DNN-RL**:
-    - PressLight, MPLight, CoLight, AttendLight, EfficientMPLight, EfficientPressLight, Efficient-Colight
+  - PressLight, MPLight, CoLight, AttendLight, EfficientMPLight, EfficientPressLight, Efficient-Colight
 - **Adv-DNN-RL**:
-    - Advanced-MaxPressure, Advanced-MPLight, Advanced-Colight
+  - Advanced-MaxPressure, Advanced-MPLight, Advanced-Colight
 - **LLMLight+LLM**:
   - `gpt-3.5-turbo-0613`, `gpt-4-0613`, `llama-2-13b-chat-hf`, `llama-2-70b-chat-hf`
 - **LLMLight+LightGPT**:
-    - The model trained on Jinan 1 is available at https://huggingface.co/collections/usail-hkust/llmlight-lightgpt-673ac5a619cbbe309165b56d
+  - The model trained on Jinan 1 is available at <https://huggingface.co/collections/usail-hkust/llmlight-lightgpt-673ac5a619cbbe309165b56d>
 
 <a id="lightgpt-training"></a>
 
 ## 5 LightGPT Training
+
+### Step 0: Imitation Data Collection
+
+run LLMLight by:
+
+```shell
+python run_chatgpt.py --prompt Commonsense \
+                      --dataset hangzhou \
+                      --traffic_file anon_4_4_hangzhou_real.json \
+                      --gpt_version gpt-4 \
+                      --proj_name TSCS
+```
 
 ### Step 1: Imitation Fine-tuning
 
@@ -190,6 +207,7 @@ Similarly, we merge the adapter with the base model by running `merge_lora.py`.
 - `finetune`: contains codes for LightGPT training.
 
 <a id="datasets"></a>
+
 ## 7 Datasets
 
 <table>
@@ -197,21 +215,21 @@ Similarly, we merge the adapter with the base model by running `merge_lora.py`.
         <td> <b> Road networks </b> </td> <td> <b> Intersections </b> </td> <td> <b> Road network arg </b> </td> <td> <b> Traffic files </b> </td>
     </tr>
     <tr> <!-- Jinan -->
-        <th rowspan="4"> Jinan </th> <th rowspan="4"> 3 X 4 </th> <th rowspan="4"> jinan </th>  <td> anon_3_4_jinan_real </td> 
+        <th rowspan="4"> Jinan </th> <th rowspan="4"> 3 X 4 </th> <th rowspan="4"> jinan </th>  <td> anon_3_4_jinan_real </td>
     </tr>
-  	<tr>
+   <tr>
       <td> anon_3_4_jinan_real_2000 </td>
-  	</tr>
-  	<tr>
+   </tr>
+   <tr>
       <td> anon_3_4_jinan_real_2500 </td>
     </tr>
     <tr>
       <td> anon_3_4_jinan_synthetic_24000_60min </td>
     </tr>
-  	<tr> <!-- Hangzhou -->
+   <tr> <!-- Hangzhou -->
         <th rowspan="3"> Hangzhou </th> <th rowspan="3"> 4 X 4 </th> <th rowspan="3"> hangzhou </th> <td> anon_4_4_hangzhou_real </td>
     </tr>
-  	<tr>
+   <tr>
       <td> anon_4_4_hangzhou_real_5816 </td>
     </tr>
     <tr>
@@ -220,7 +238,7 @@ Similarly, we merge the adapter with the base model by running `merge_lora.py`.
   <tr> <!-- Newyork -->
         <th rowspan="2"> New York </th> <th rowspan="2"> 28 X 7 </th> <th rowspan="2"> newyork_28x7 </th> <td> anon_28_7_newyork_real_double </td>
     </tr>
-  	<tr>
+   <tr>
       <td> anon_28_7_newyork_real_triple </td>
     </tr>
 </table>

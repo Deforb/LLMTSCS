@@ -10,22 +10,30 @@ eight_phase_list = ['ETWT', 'NTST', 'ELWL', 'NLSL', 'WTWL', 'ETEL', 'STSL', 'NTN
 four_phase_list = {'ETWT': 0, 'NTST': 1, 'ELWL': 2, 'NLSL': 3}
 phase2code = {0: 'ETWT', 1: 'NTST', 2: 'ELWL', 3: 'NLSL'}
 location_dict = {"N": "North", "S": "South", "E": "East", "W": "West"}
-location_dict_detail = {"N": "Northern", "S": "Southern", "E": "Eastern", "W": "Western"}
+location_dict_detail = {
+    "N": "Northern",
+    "S": "Southern",
+    "E": "Eastern",
+    "W": "Western",
+}
 
-phase_explanation_dict_detail = {"NTST": "- NTST: Northern and southern through lanes.",
-                                 "NLSL": "- NLSL: Northern and southern left-turn lanes.",
-                                 "NTNL": "- NTNL: Northern through and left-turn lanes.",
-                                 "STSL": "- STSL: Southern through and left-turn lanes.",
-                                 "ETWT": "- ETWT: Eastern and western through lanes.",
-                                 "ELWL": "- ELWL: Eastern and western left-turn lanes.",
-                                 "ETEL": "- ETEL: Eastern through and left-turn lanes.",
-                                 "WTWL": "- WTWL: Western through and left-turn lanes."
-                                }
+phase_explanation_dict_detail = {
+    "NTST": "- NTST: Northern and southern through lanes.",
+    "NLSL": "- NLSL: Northern and southern left-turn lanes.",
+    "NTNL": "- NTNL: Northern through and left-turn lanes.",
+    "STSL": "- STSL: Southern through and left-turn lanes.",
+    "ETWT": "- ETWT: Eastern and western through lanes.",
+    "ELWL": "- ELWL: Eastern and western left-turn lanes.",
+    "ETEL": "- ETEL: Eastern through and left-turn lanes.",
+    "WTWL": "- WTWL: Western through and left-turn lanes.",
+}
+
 
 def merge(dic_tmp, dic_to_change):
     dic_result = copy.deepcopy(dic_tmp)
     dic_result.update(dic_to_change)
     return dic_result
+
 
 def load_json(file):
     try:
@@ -35,6 +43,7 @@ def load_json(file):
         raise e
     return data
 
+
 def dump_json(data, file, indent=None):
     try:
         with open(file, 'w') as f:
@@ -42,14 +51,19 @@ def dump_json(data, file, indent=None):
     except Exception as e:
         raise e
 
+
 def calculate_road_length(road_points):
     length = 0.0
     i = 1
     while i < len(road_points):
-        length += np.sqrt((road_points[i]['x'] - road_points[i-1]['x']) ** 2 + (road_points[i]['y'] - road_points[i-1]['y']) ** 2)
+        length += np.sqrt(
+            (road_points[i]['x'] - road_points[i - 1]['x']) ** 2
+            + (road_points[i]['y'] - road_points[i - 1]['y']) ** 2
+        )
         i += 1
 
     return length
+
 
 def get_state(roads, env):
     """
@@ -72,15 +86,19 @@ def get_state(roads, env):
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["go_straight"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {"cells": [0 for _ in range(3)],
-                                                                                    "queue_len": queue_len}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {
+                    "cells": [0 for _ in range(3)],
+                    "queue_len": queue_len,
+                }
 
             if roads[r]["turn_left"] is not None:
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["turn_left"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {"cells": [0 for _ in range(3)],
-                                                                                    "queue_len": queue_len}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {
+                    "cells": [0 for _ in range(3)],
+                    "queue_len": queue_len,
+                }
 
             # get vehicle position info
             straight_lanes = [f"{r}_{idx}" for idx in roads[r]["lanes"]["go_straight"]]
@@ -129,14 +147,19 @@ def get_state(roads, env):
 
                     # speed > 0.1 m/s are approaching vehicles
                     if float(veh_info["speed"]) > 0.1:
-                        statistic_state[location_direction_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state[location_direction_dict[lane_group]]["cells"][
+                            gpt_lane_cell
+                        ] += 1
 
         # incoming lanes
         else:
             queue_len = 0.0
             for lane in range(2):
                 queue_len += lane_queues[f"{r}_{lane}"]
-            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {"cells": [0 for _ in range(3)], "queue_len": queue_len}
+            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {
+                "cells": [0 for _ in range(3)],
+                "queue_len": queue_len,
+            }
             incoming_lanes = [f"{r}_{idx}" for idx in range(2)]
 
             for lane in incoming_lanes:
@@ -169,9 +192,12 @@ def get_state(roads, env):
 
                     # speed > 0.1 m/s are approaching vehicles
                     if float(veh_info["speed"]) > 0.1:
-                        statistic_state_incoming[location_incoming_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state_incoming[location_incoming_dict[lane_group]][
+                            "cells"
+                        ][gpt_lane_cell] += 1
 
     return statistic_state, statistic_state_incoming
+
 
 def get_state_detail(roads, env):
     """
@@ -195,17 +221,21 @@ def get_state_detail(roads, env):
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["go_straight"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {"cells": [0 for _ in range(4)],
-                                                                                    "queue_len": queue_len,
-                                                                                    "avg_wait_time": 0.0}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {
+                    "cells": [0 for _ in range(4)],
+                    "queue_len": queue_len,
+                    "avg_wait_time": 0.0,
+                }
 
             if roads[r]["turn_left"] is not None:
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["turn_left"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {"cells": [0 for _ in range(4)],
-                                                                                    "queue_len": queue_len,
-                                                                                    "avg_wait_time": 0.0}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {
+                    "cells": [0 for _ in range(4)],
+                    "queue_len": queue_len,
+                    "avg_wait_time": 0.0,
+                }
 
             # get vehicle position info
             straight_lanes = [f"{r}_{idx}" for idx in roads[r]["lanes"]["go_straight"]]
@@ -258,22 +288,33 @@ def get_state_detail(roads, env):
                     # speed > 0.1 m/s are approaching vehicles
                     speed = float(veh_info["speed"])
                     if speed > 0.1:
-                        statistic_state[location_direction_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state[location_direction_dict[lane_group]]["cells"][
+                            gpt_lane_cell
+                        ] += 1
                         outgoing_lane_speeds.append(speed)
                     else:
-                        veh_waiting_time = env.waiting_vehicle_list[veh]['time'] if veh in env.waiting_vehicle_list else 0.0
+                        veh_waiting_time = (
+                            env.waiting_vehicle_list[veh]['time']
+                            if veh in env.waiting_vehicle_list
+                            else 0.0
+                        )
                         waiting_times.append(veh_waiting_time)
-                avg_wait_time = np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
-                statistic_state[location_direction_dict[lane_group]]["avg_wait_time"] = avg_wait_time
-
+                avg_wait_time = (
+                    np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
+                )
+                statistic_state[location_direction_dict[lane_group]][
+                    "avg_wait_time"
+                ] = avg_wait_time
 
         # incoming lanes
         else:
             queue_len = 0.0
             for lane in range(2):
                 queue_len += lane_queues[f"{r}_{lane}"]
-            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {"cells": [0 for _ in range(4)],
-                                                                                   "queue_len": queue_len}
+            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {
+                "cells": [0 for _ in range(4)],
+                "queue_len": queue_len,
+            }
             incoming_lanes = [f"{r}_{idx}" for idx in range(2)]
 
             for lane in incoming_lanes:
@@ -308,11 +349,14 @@ def get_state_detail(roads, env):
 
                     # speed > 0.1 m/s are approaching vehicles
                     if float(veh_info["speed"]) > 0.1:
-                        statistic_state_incoming[location_incoming_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state_incoming[location_incoming_dict[lane_group]][
+                            "cells"
+                        ][gpt_lane_cell] += 1
 
     mean_speed = np.mean(outgoing_lane_speeds) if len(outgoing_lane_speeds) > 0 else 0.0
 
     return statistic_state, statistic_state_incoming, mean_speed
+
 
 def get_state_three_segment(roads, env):
     """
@@ -336,17 +380,21 @@ def get_state_three_segment(roads, env):
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["go_straight"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {"cells": [0 for _ in range(3)],
-                                                                                    "queue_len": queue_len,
-                                                                                    "avg_wait_time": 0.0}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}T"] = {
+                    "cells": [0 for _ in range(3)],
+                    "queue_len": queue_len,
+                    "avg_wait_time": 0.0,
+                }
 
             if roads[r]["turn_left"] is not None:
                 queue_len = 0.0
                 for lane in roads[r]["lanes"]["turn_left"]:
                     queue_len += lane_queues[f"{r}_{lane}"]
-                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {"cells": [0 for _ in range(3)],
-                                                                                    "queue_len": queue_len,
-                                                                                    "avg_wait_time": 0.0}
+                statistic_state[f"{location_dict_short[roads[r]['location']]}L"] = {
+                    "cells": [0 for _ in range(3)],
+                    "queue_len": queue_len,
+                    "avg_wait_time": 0.0,
+                }
 
             # get vehicle position info
             straight_lanes = [f"{r}_{idx}" for idx in roads[r]["lanes"]["go_straight"]]
@@ -397,22 +445,33 @@ def get_state_three_segment(roads, env):
                     # speed > 0.1 m/s are approaching vehicles
                     speed = float(veh_info["speed"])
                     if speed > 0.1:
-                        statistic_state[location_direction_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state[location_direction_dict[lane_group]]["cells"][
+                            gpt_lane_cell
+                        ] += 1
                         outgoing_lane_speeds.append(speed)
                     else:
-                        veh_waiting_time = env.waiting_vehicle_list[veh]['time'] if veh in env.waiting_vehicle_list else 0.0
+                        veh_waiting_time = (
+                            env.waiting_vehicle_list[veh]['time']
+                            if veh in env.waiting_vehicle_list
+                            else 0.0
+                        )
                         waiting_times.append(veh_waiting_time)
-                avg_wait_time = np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
-                statistic_state[location_direction_dict[lane_group]]["avg_wait_time"] = avg_wait_time
-
+                avg_wait_time = (
+                    np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
+                )
+                statistic_state[location_direction_dict[lane_group]][
+                    "avg_wait_time"
+                ] = avg_wait_time
 
         # incoming lanes
         else:
             queue_len = 0.0
             for lane in range(2):
                 queue_len += lane_queues[f"{r}_{lane}"]
-            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {"cells": [0 for _ in range(3)],
-                                                                                   "queue_len": queue_len}
+            statistic_state_incoming[location_dict_short[roads[r]['location']]] = {
+                "cells": [0 for _ in range(3)],
+                "queue_len": queue_len,
+            }
             incoming_lanes = [f"{r}_{idx}" for idx in range(2)]
 
             for lane in incoming_lanes:
@@ -445,11 +504,14 @@ def get_state_three_segment(roads, env):
 
                     # speed > 0.1 m/s are approaching vehicles
                     if float(veh_info["speed"]) > 0.1:
-                        statistic_state_incoming[location_incoming_dict[lane_group]]["cells"][gpt_lane_cell] += 1
+                        statistic_state_incoming[location_incoming_dict[lane_group]][
+                            "cells"
+                        ][gpt_lane_cell] += 1
 
     mean_speed = np.mean(outgoing_lane_speeds) if len(outgoing_lane_speeds) > 0 else 0.0
 
     return statistic_state, statistic_state_incoming, mean_speed
+
 
 def trans_prompt_llama(message, chat_history, system_prompt):
     texts = [f'<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n']
@@ -480,14 +542,17 @@ def state2text(state):
         seg_2_lane_2 = state[lane_2]['cells'][1]
         seg_3_lane_2 = state[lane_2]['cells'][2] + state[lane_2]['cells'][3]
 
-        state_txt += (f"Signal: {p}\n"
-                      f"Relieves: {phase_explanation_dict_detail[p][8:-1]}\n"
-                      f"- Early queued: {queue_len_1} ({location_dict[lane_1[0]]}), {queue_len_2} ({location_dict[lane_2[0]]}), {queue_len_1 + queue_len_2} (Total)\n"
-                      f"- Segment 1: {seg_1_lane_1} ({location_dict[lane_1[0]]}), {seg_1_lane_2} ({location_dict[lane_2[0]]}), {seg_1_lane_1 + seg_1_lane_2} (Total)\n"
-                      f"- Segment 2: {seg_2_lane_1} ({location_dict[lane_1[0]]}), {seg_2_lane_2} ({location_dict[lane_2[0]]}), {seg_2_lane_1 + seg_2_lane_2} (Total)\n"
-                      f"- Segment 3: {seg_3_lane_1} ({location_dict[lane_1[0]]}), {seg_3_lane_2} ({location_dict[lane_2[0]]}), {seg_3_lane_1 + seg_3_lane_2} (Total)\n\n")
+        state_txt += (
+            f"Signal: {p}\n"
+            f"Relieves: {phase_explanation_dict_detail[p][8:-1]}\n"
+            f"- Early queued: {queue_len_1} ({location_dict[lane_1[0]]}), {queue_len_2} ({location_dict[lane_2[0]]}), {queue_len_1 + queue_len_2} (Total)\n"
+            f"- Segment 1: {seg_1_lane_1} ({location_dict[lane_1[0]]}), {seg_1_lane_2} ({location_dict[lane_2[0]]}), {seg_1_lane_1 + seg_1_lane_2} (Total)\n"
+            f"- Segment 2: {seg_2_lane_1} ({location_dict[lane_1[0]]}), {seg_2_lane_2} ({location_dict[lane_2[0]]}), {seg_2_lane_1 + seg_2_lane_2} (Total)\n"
+            f"- Segment 3: {seg_3_lane_1} ({location_dict[lane_1[0]]}), {seg_3_lane_2} ({location_dict[lane_2[0]]}), {seg_3_lane_1 + seg_3_lane_2} (Total)\n\n"
+        )
 
     return state_txt
+
 
 def getPrompt(state_txt):
     # fill information
@@ -496,45 +561,51 @@ def getPrompt(state_txt):
         signals_text += phase_explanation_dict_detail[p] + "\n"
 
     prompt = [
-        {"role": "system",
-         "content": "You are an expert in traffic management. You can use your knowledge of traffic commonsense to solve this traffic signal control tasks."},
-        {"role": "user",
-         "content": "A traffic light regulates a four-section intersection with northern, southern, eastern, and western "
-                    "sections, each containing two lanes: one for through traffic and one for left-turns. Each lane is "
-                    "further divided into three segments. Segment 1 is the closest to the intersection. Segment 2 is in the "
-                    "middle. Segment 3 is the farthest. In a lane, there may be early queued vehicles and approaching "
-                    "vehicles traveling in different segments. Early queued vehicles have arrived at the intersection and "
-                    "await passage permission. Approaching vehicles will arrive at the intersection in the future.\n\n"
-                    "The traffic light has 4 signal phases. Each signal relieves vehicles' flow in the group of two "
-                    "specific lanes. The state of the intersection is listed below. It describes:\n"
-                    "- The group of lanes relieving vehicles' flow under each signal phase.\n"
-                    "- The number of early queued vehicles of the allowed lanes of each signal.\n"
-                    "- The number of approaching vehicles in different segments of the allowed lanes of each signal.\n\n"
-                    + state_txt +
-                    "Please answer:\n"
-                    "Which is the most effective traffic signal that will most significantly improve the traffic "
-                    "condition during the next phase?\n\n"
-                    "Requirements:\n"
-                    "- Let's think step by step.\n"
-                    "- You can only choose one of the signals listed above.\n"
-                    "- You must follow the following steps to provide your analysis: Step 1: Provide your analysis "
-                    "for identifying the optimal traffic signal. Step 2: Answer your chosen signal.\n"
-                    "- Your choice can only be given after finishing the analysis.\n"
-                    "- Your choice must be identified by the tag: <signal>YOUR_CHOICE</signal>."
-         }
+        {
+            "role": "system",
+            "content": "You are an expert in traffic management. You can use your knowledge of traffic commonsense to solve this traffic signal control tasks.",
+        },
+        {
+            "role": "user",
+            "content": "A traffic light regulates a four-section intersection with northern, southern, eastern, and western "
+            "sections, each containing two lanes: one for through traffic and one for left-turns. Each lane is "
+            "further divided into three segments. Segment 1 is the closest to the intersection. Segment 2 is in the "
+            "middle. Segment 3 is the farthest. In a lane, there may be early queued vehicles and approaching "
+            "vehicles traveling in different segments. Early queued vehicles have arrived at the intersection and "
+            "await passage permission. Approaching vehicles will arrive at the intersection in the future.\n\n"
+            "The traffic light has 4 signal phases. Each signal relieves vehicles' flow in the group of two "
+            "specific lanes. The state of the intersection is listed below. It describes:\n"
+            "- The group of lanes relieving vehicles' flow under each signal phase.\n"
+            "- The number of early queued vehicles of the allowed lanes of each signal.\n"
+            "- The number of approaching vehicles in different segments of the allowed lanes of each signal.\n\n"
+            + state_txt
+            + "Please answer:\n"
+            "Which is the most effective traffic signal that will most significantly improve the traffic "
+            "condition during the next phase?\n\n"
+            "Requirements:\n"
+            "- Let's think step by step.\n"
+            "- You can only choose one of the signals listed above.\n"
+            "- You must follow the following steps to provide your analysis: Step 1: Provide your analysis "
+            "for identifying the optimal traffic signal. Step 2: Answer your chosen signal.\n"
+            "- Your choice can only be given after finishing the analysis.\n"
+            "- Your choice must be identified by the tag: <signal>YOUR_CHOICE</signal>.",
+        },
     ]
 
     return prompt
+
 
 def action2code(action):
     code = four_phase_list[action]
 
     return code
 
+
 def code2action(action):
     code = phase2code[action]
 
     return code
+
 
 def torch_gc():
     if torch.cuda.is_available():
