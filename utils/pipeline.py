@@ -6,7 +6,7 @@ from .my_utils import (
     dump_json,
     get_state_detail,
     state2text,
-    getPrompt,
+    get_prompt,
     action2code,
     eight_phase_list,
     four_phase_list,

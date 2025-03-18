@@ -1,33 +1,36 @@
-from utils.my_utils import (
-    dump_json,
-    get_state_detail,
-    state2text,
-    getPrompt,
-    action2code,
-    code2action,
-    eight_phase_list,
-    four_phase_list,
-    torch_gc,
-)
-import vllm
+# from typing import Dict, List
 import os
 import time
-import numpy as np
-import wandb
-from utils.cityflow_env import CityFlowEnv
-from utils import config
-from utils.aft_rank_loss_utils import *
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import LoraConfig, get_peft_model
-from datasets import load_dataset
-from tqdm import tqdm
-import torch
 from copy import deepcopy
 import re
 import json
 import shutil
 import copy
 import random
+
+import numpy as np
+import wandb
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import LoraConfig, get_peft_model
+from datasets import load_dataset
+from tqdm import tqdm
+import torch
+import vllm
+
+from utils.cityflow_env import CityFlowEnv
+from utils import config
+from utils.aft_rank_loss_utils import *
+from utils.my_utils import (
+    dump_json,
+    get_state_detail,
+    state2text,
+    get_prompt,
+    action2code,
+    # code2action,
+    eight_phase_list,
+    four_phase_list,
+    torch_gc,
+)
 
 
 def merge(dic_tmp, dic_to_change):
@@ -196,7 +199,7 @@ class LLM_CGPR_Collector:
         )
         self.env.reset()
         self.initialize_llm()
-        self.initialize_critic()
+        # self.initialize_critic()
 
     def collect(self):
         print("================ Start Training ================")
@@ -223,27 +226,9 @@ class LLM_CGPR_Collector:
             action_list = []
             current_states = []
 
-            for i in range(len(state)):
-                # log statistic state
-                intersection = self.env.intersection_dict[
-                    self.env.list_intersection[i].inter_name
-                ]
-                roads = deepcopy(intersection["roads"])
-                statistic_state, statistic_state_incoming, mean_speed = (
-                    get_state_detail(roads, self.env)
-                )
-                state_action_log[i].append(
-                    {
-                        "state": statistic_state,
-                        "state_incoming": statistic_state_incoming,
-                        "approaching_speed": mean_speed,
-                    }
-                )
-                current_states.append(statistic_state)
-
             prompts = []
             for s in current_states:
-                prompt = getPrompt(state2text(s))
+                prompt = get_prompt(state2text(s), 'add')
                 prompt = (
                     prompt[0]['content']
                     + "\n\n### Instruction:\n"
@@ -251,15 +236,15 @@ class LLM_CGPR_Collector:
                     + "\n\n### Response:\n"
                 )
                 prompts.append(prompt)
-            inputs = self.tokenizer(prompts, return_tensors="pt", padding="longest")[
-                'input_ids'
-            ].to('cuda')
+            inputs: dict[str, torch.Tensor] = self.tokenizer(
+                prompts, return_tensors="pt", padding="longest"
+            )['input_ids'].to('cuda')
 
-            response_ids = self.llm_model.generate(
+            response_ids: torch.Tensor = self.llm_model.generate(
                 input_ids=inputs, **self.generation_kwargs
             )
             response_ids = response_ids.reshape(-1, 4, response_ids.size(1))
-            responses = []
+            responses: list[str] = []
             for i in range(response_ids.size(0)):
                 responses.append(
                     self.tokenizer.batch_decode(
@@ -267,186 +252,50 @@ class LLM_CGPR_Collector:
                     )
                 )
 
-            rewards = []
-            all_decoded_responses = []
-            all_sampled_rewards = []
-            critic_actions = []
             fail_num = 0
-            vehicle_nums = self.get_vehicle_num(current_states)
-            for i, res in enumerate(responses):
-                action_response = res[random.randint(0, 3)][len(prompts[i]) :]
-                signal_answer_pattern = r'<signal>(.*?)</signal>'
-                signals = re.findall(signal_answer_pattern, action_response)
-                signal_text = signals[-1] if len(signals) > 0 else "ETWT"
-                action_list.append(
-                    action2code(signal_text) if signal_text in four_phase_list else 0
+
+            for prompt, response in zip(prompts, responses):
+                action_response = response[len(prompt) :]
+                decisions: list[str] = re.findall(
+                    r'<decision>(.*?)</decision>', action_response
                 )
-                if len(signals) == 0 or signal_text not in four_phase_list:
-                    signal_text = "ETWT"
-                    if vehicle_nums[i] != 0:
-                        self.fail_logs.append(
-                            {"state": current_states[i], "response": action_response}
-                        )
-                        dump_json(self.fail_logs, self.fail_log_file)
-                        fail_num += 1
 
-                # critic agents
-                one_state, _ = self.env.get_state(
-                    self.dic_critic_agent_conf["LIST_STATE_FEATURE"]
-                )
-                critic_agent_action, q_value = self.critic_agents[
-                    i
-                ].choose_action_with_value(step_num, one_state)
-                critic_actions.append(code2action(critic_agent_action[i]))
-                rewards.append(q_value[i][action2code(signal_text)])
-
-                # collect responses
-                prompt_responses = []
-                sampled_rewards = []
-                for res_i in range(4):
-                    sampled_response = res[res_i][len(prompts[i]) :]
-                    sampled_signals = re.findall(
-                        signal_answer_pattern, sampled_response
+                if not decisions:
+                    self.fail_logs.append(
+                        {"state": current_states[i], "response": action_response}
                     )
-                    sampled_signal_text = (
-                        sampled_signals[-1] if len(sampled_signals) > 0 else "ETWT"
-                    )
-                    if (
-                        len(sampled_signals) == 0
-                        or sampled_signal_text not in four_phase_list
-                    ):
-                        sampled_rewards.append(0)
-                    else:
-                        sampled_rewards.append(
-                            float(q_value[i][action2code(sampled_signal_text)])
-                        )
+                    dump_json(self.fail_logs, self.fail_log_file)
+                    fail_num += 1
+                    return
 
-                    prompt_responses.append(sampled_response)
-                all_decoded_responses.append(prompt_responses)
-                all_sampled_rewards.append(sampled_rewards)
+                decision_text: str = decisions[-1]
+                decison = tuple(map(float, decision_text.split(',')))
+                reward: float = sum(decison)
 
-            next_state, _, done, _ = self.env.step(action_list)
-
-            for i, res in enumerate(responses):
-                if vehicle_nums[i] > 0:
-                    new_d = {
-                        "query": prompts[i],
-                        "responses": all_decoded_responses[i],
-                        "scores": all_sampled_rewards[i],
+                self.data_buffer.append(
+                    {
+                        'query': prompt,
+                        'response': response,
+                        'decison': decison,
+                        'score': reward,
                     }
-                    com_score = new_d["scores"][0]
-                    all_same = True
-                    for s in new_d["scores"]:
-                        if s != com_score:
-                            all_same = False
-
-                    if not all_same:
-                        self.data_buffer.append(new_d)
-
-            # log action
-            for i in range(len(state)):
-                state_action_log[i][-1]["action"] = eight_phase_list[action_list[i]]
-
-            current_time = self.env.get_current_time()  # in seconds
-            state = next_state
+                )
 
             # calculate logger results
-            total_reward += sum(rewards)
-            print("Rewards:", sum(rewards), "Fail Num:", fail_num)
-            queue_length_inter = []
-            for inter in self.env.list_intersection:
-                queue_length_inter.append(
-                    sum(inter.dic_feature['lane_num_waiting_vehicle_in'])
-                )
-            queue_length_episode.append(sum(queue_length_inter))
-
-            # waiting time
-            waiting_times = []
-            for veh in self.env.waiting_vehicle_list:
-                waiting_times.append(self.env.waiting_vehicle_list[veh]['time'])
-            waiting_time_episode.append(
-                np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
-            )
+            print("Fail Num:", fail_num)
 
             if not os.path.exists("./data/cgpr"):
                 os.makedirs("./data/cgpr")
+
             dump_json(
                 self.data_buffer,
                 f"./data/cgpr/cgpr_{self.dic_traffic_env_conf['TRAFFIC_FILE']}",
             )
             torch_gc()
 
-        # wandb logger
-        vehicle_travel_times = {}
-        for inter in self.env.list_intersection:
-            arrive_left_times = inter.dic_vehicle_arrive_leave_time
-            for veh in arrive_left_times:
-                if "shadow" in veh:
-                    continue
-                enter_time = arrive_left_times[veh]["enter_time"]
-                leave_time = arrive_left_times[veh]["leave_time"]
-                if not np.isnan(enter_time):
-                    leave_time = (
-                        leave_time
-                        if not np.isnan(leave_time)
-                        else self.dic_traffic_env_conf["RUN_COUNTS"]
-                    )
-                    if veh not in vehicle_travel_times:
-                        vehicle_travel_times[veh] = [leave_time - enter_time]
-                    else:
-                        vehicle_travel_times[veh].append(leave_time - enter_time)
-
-        total_travel_time = np.mean(
-            [sum(vehicle_travel_times[veh]) for veh in vehicle_travel_times]
-        )
-
-        results = {
-            "env/collect_reward": total_reward,
-            "env/collect_avg_queue_len": (
-                np.mean(queue_length_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "env/collect_queuing_vehicle_num": (
-                np.sum(queue_length_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "env/collect_avg_waiting_time": (
-                np.mean(waiting_time_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "env/collect_avg_travel_time": total_travel_time,
-        }
-        print("Collect:", results)
-        f_state_action = os.path.join(
-            self.dic_path["PATH_TO_WORK_DIRECTORY"], "state_action.json"
-        )
-        dump_json(state_action_log, f_state_action)
-
-        print("Collection time: ", time.time() - start_time)
-        self.env.batch_log_2()
-
-        if not os.path.exists("./data/cgpr"):
-            os.makedirs("./data/cgpr")
-        dump_json(
-            self.data_buffer,
-            f"./data/cgpr/cgpr_{self.dic_traffic_env_conf['TRAFFIC_FILE']}",
-        )
-
     def train_test(self):
         print("================ Start Data Collection ================")
         self.collect()
-
-    def get_vehicle_num(self, states):
-        veh_nums = []
-
-        for i in range(len(states)):
-            vehicle_num = 0
-
-            for lane in states[i]:
-                vehicle_num += states[i][lane]['queue_len']
-                for cell in range(len(states[i][lane]['cells'])):
-                    vehicle_num += states[i][lane]['cells'][cell]
-
-            veh_nums.append(vehicle_num)
-
-        return veh_nums
 
 
 class LLM_CGPR_Trainer:
@@ -621,7 +470,7 @@ class LLM_CGPR_Trainer:
 
             prompts = []
             for s in current_states:
-                prompt = getPrompt(state2text(s))
+                prompt = get_prompt(state2text(s))
                 prompt = (
                     prompt[0]['content']
                     + "\n\n### Instruction:\n"
@@ -786,20 +635,17 @@ class LLM_CGPR_Trainer:
             f"{self.dic_agent_conf['LLM_OUTPUT_DIR']}_{self.dic_traffic_env_conf['TRAFFIC_FILE'].replace('.json', '')}"
         )
 
-    '''
-    ======================= Class Utils =======================
-    '''
-
+    # ======================= Class Utils =======================
     def get_vehicle_num(self, states):
         veh_nums = []
 
-        for i in range(len(states)):
+        for state in states:
             vehicle_num = 0
 
-            for lane in states[i]:
-                vehicle_num += states[i][lane]['queue_len']
-                for cell in range(len(states[i][lane]['cells'])):
-                    vehicle_num += states[i][lane]['cells'][cell]
+            for lane in state:
+                vehicle_num += state[lane]['queue_len']
+                for cell in range(len(state[lane]['cells'])):
+                    vehicle_num += state[lane]['cells'][cell]
 
             veh_nums.append(vehicle_num)
 
@@ -807,18 +653,17 @@ class LLM_CGPR_Trainer:
 
 
 class LLM_Inference:
-    def __init__(
-        self, dic_agent_conf, dic_traffic_env_conf, dic_path, roadnet='', trafficflow=''
-    ):
+    def __init__(self, dic_agent_conf, dic_traffic_env_conf, dic_path):
         self.dic_agent_conf = dic_agent_conf
         self.dic_traffic_env_conf = dic_traffic_env_conf
         self.dic_path = dic_path
         self.agents = []
         self.env = None
-        self.roadnet = roadnet
-        self.trafficflow = trafficflow
+        self.roadnet = ''
+        self.trafficflow = ''
         self.models = []
         self.generation_kwargs = {}
+        self.test_generation_kwargs = {}
         self.epoch_num = 0
         self.tokenizer = None
         self.llm_model = None
@@ -921,7 +766,7 @@ class LLM_Inference:
 
             prompts = []
             for s in current_states:
-                prompt = getPrompt(state2text(s))
+                prompt = get_prompt(state2text(s), 'add')
                 prompt = (
                     prompt[0]['content']
                     + "\n\n### Instruction:\n"
@@ -952,10 +797,10 @@ class LLM_Inference:
 
             fail_num = 0
             vehicle_nums = self.get_vehicle_num(current_states)
-            critic_actions = []
+
             for i, res in enumerate(responses):
                 res = res[len(prompts[i]) :]
-                signal_answer_pattern = r'<signal>(.*?)</signal>'
+                signal_answer_pattern = r'<decision>(.*?)</decision>'
                 signals = re.findall(signal_answer_pattern, res)
                 signal_text = signals[-1] if len(signals) > 0 else "ETWT"
                 action_list.append(
@@ -1214,7 +1059,7 @@ class LLM_Inference_VLLM:
 
             prompts = []
             for s in current_states:
-                prompt = getPrompt(state2text(s))
+                prompt = get_prompt(state2text(s))
                 prompt = (
                     prompt[0]['content']
                     + "\n\n### Instruction:\n"

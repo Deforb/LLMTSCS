@@ -8,7 +8,7 @@ import pickle
 from copy import deepcopy
 from utils.my_utils import (
     get_state_detail,
-    getPrompt,
+    get_prompt,
     state2text,
     action2code,
     four_phase_list,
@@ -249,7 +249,7 @@ class Generator_LLMLight:
             prompts = []
             alpaca_prompts = []
             for s in current_states:
-                prompt = getPrompt(state2text(s))
+                prompt = get_prompt(state2text(s))
                 alpaca_prompts.append(
                     {"instruction": prompt[1]['content'], "input": "", "output": ""}
                 )

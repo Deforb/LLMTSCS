@@ -526,73 +526,40 @@ def trans_prompt_llama(message, chat_history, system_prompt):
     return ''.join(texts)
 
 
-def state2text(state):
-    state_txt = ""
-    for p in four_phase_list:
-        lane_1 = p[:2]
-        lane_2 = p[2:]
-        queue_len_1 = int(state[lane_1]['queue_len'])
-        queue_len_2 = int(state[lane_2]['queue_len'])
+def state2text(state: tuple[int, int, int, bool, bool, float]):
+    w1, w2, w3, s2_restricted, s3_restricted, forecast = state
+    return f"""当前储水量：
+- S1：{w1}万立方米 [可自由取放]
+- S2：{w2}万立方米 [{'受咸潮限制' if s2_restricted else '正常'}]
+- S3：{w3}万立方米 [{'受咸潮限制' if s3_restricted else '正常'}]
 
-        seg_1_lane_1 = state[lane_1]['cells'][0]
-        seg_2_lane_1 = state[lane_1]['cells'][1]
-        seg_3_lane_1 = state[lane_1]['cells'][2] + state[lane_1]['cells'][3]
-
-        seg_1_lane_2 = state[lane_2]['cells'][0]
-        seg_2_lane_2 = state[lane_2]['cells'][1]
-        seg_3_lane_2 = state[lane_2]['cells'][2] + state[lane_2]['cells'][3]
-
-        state_txt += (
-            f"Signal: {p}\n"
-            f"Relieves: {phase_explanation_dict_detail[p][8:-1]}\n"
-            f"- Early queued: {queue_len_1} ({location_dict[lane_1[0]]}), {queue_len_2} ({location_dict[lane_2[0]]}), {queue_len_1 + queue_len_2} (Total)\n"
-            f"- Segment 1: {seg_1_lane_1} ({location_dict[lane_1[0]]}), {seg_1_lane_2} ({location_dict[lane_2[0]]}), {seg_1_lane_1 + seg_1_lane_2} (Total)\n"
-            f"- Segment 2: {seg_2_lane_1} ({location_dict[lane_1[0]]}), {seg_2_lane_2} ({location_dict[lane_2[0]]}), {seg_2_lane_1 + seg_2_lane_2} (Total)\n"
-            f"- Segment 3: {seg_3_lane_1} ({location_dict[lane_1[0]]}), {seg_3_lane_2} ({location_dict[lane_2[0]]}), {seg_3_lane_1 + seg_3_lane_2} (Total)\n\n"
-        )
-
-    return state_txt
+未来7天咸潮发生的概率：{forecast}"""
 
 
-def getPrompt(state_txt):
-    # fill information
-    signals_text = ""
-    for i, p in enumerate(four_phase_list):
-        signals_text += phase_explanation_dict_detail[p] + "\n"
-
-    prompt = [
+def get_prompt(state_txt: str, rf_expression: str) -> list[dict[str, str]]:
+    return [
         {
             "role": "system",
-            "content": "You are an expert in traffic management. You can use your knowledge of traffic commonsense to solve this traffic signal control tasks.",
+            "content": "您是一个智能水资源管理专家，需要根据实时数据和约束条件优化三个水库的放水策略。",
         },
         {
             "role": "user",
-            "content": "A traffic light regulates a four-section intersection with northern, southern, eastern, and western "
-            "sections, each containing two lanes: one for through traffic and one for left-turns. Each lane is "
-            "further divided into three segments. Segment 1 is the closest to the intersection. Segment 2 is in the "
-            "middle. Segment 3 is the farthest. In a lane, there may be early queued vehicles and approaching "
-            "vehicles traveling in different segments. Early queued vehicles have arrived at the intersection and "
-            "await passage permission. Approaching vehicles will arrive at the intersection in the future.\n\n"
-            "The traffic light has 4 signal phases. Each signal relieves vehicles' flow in the group of two "
-            "specific lanes. The state of the intersection is listed below. It describes:\n"
-            "- The group of lanes relieving vehicles' flow under each signal phase.\n"
-            "- The number of early queued vehicles of the allowed lanes of each signal.\n"
-            "- The number of approaching vehicles in different segments of the allowed lanes of each signal.\n\n"
-            + state_txt
-            + "Please answer:\n"
-            "Which is the most effective traffic signal that will most significantly improve the traffic "
-            "condition during the next phase?\n\n"
-            "Requirements:\n"
-            "- Let's think step by step.\n"
-            "- You can only choose one of the signals listed above.\n"
-            "- You must follow the following steps to provide your analysis: Step 1: Provide your analysis "
-            "for identifying the optimal traffic signal. Step 2: Answer your chosen signal.\n"
-            "- Your choice can only be given after finishing the analysis.\n"
-            "- Your choice must be identified by the tag: <signal>YOUR_CHOICE</signal>.",
+            "content": f"三个水库系统包含S1（内陆）、S2、S3（入海口）。每日决策变量为放水量x1,x2,x3（万立方米）。当前状态：\n"
+            f"{state_txt}\n\n"
+            "约束条件：\n"
+            "1. 水量守恒：x1≤w1, x2≤w2, x3≤w3\n"
+            "2. 咸潮约束：当S2/S3受咸潮影响时，x2≥0/x3≥0（仅能放水）\n"
+            "3. 最小供水量：x1+x2+x3 ≥ 当日全市需求\n\n"
+            f"奖励函数：{rf_expression}\n"
+            "示例：当x1=100,x2=0(S2受限),x3=150时，RF=...\n\n"  # TODO
+            "请回答：\n"
+            "在满足当前约束并考虑未来咸潮风险的情况下，如何设置今日(x1,x2,x3)使年度总收益最大？\n\n"
+            "要求：\n"
+            "- 分三步分析：当前约束→未来预测→长期收益\n"
+            "- 必须用<analysis>标签包裹推理过程\n"
+            "- 最终决策用<decision>x1,x2,x3</decision>表示",
         },
     ]
-
-    return prompt
 
 
 def action2code(action):
