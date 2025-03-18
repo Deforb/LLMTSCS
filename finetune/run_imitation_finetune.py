@@ -1,3 +1,44 @@
+"""
+LoRA 模仿微调训练模块
+
+本模块用于实现基于LoRA（Low-Rank Adaptation）的模仿学习微调，通过专家轨迹数据训练语言模型掌握交通信号控制策略。
+
+功能特性：
+- 支持LLaMA等因果语言模型的低秩适配
+- 支持观察掩码（Observation Masking）训练模式
+- 集成梯度累积与分布式训练
+- 自动保存最佳模型检查点
+- 支持BF16混合精度训练
+
+主要参数：
+--base_model         预训练模型路径（必需）
+                     示例：./original_models/llama-13b-hf
+--data_path          训练数据路径（JSON格式）
+                     默认：imitation_fine_tuning_data_jinan_1.json
+--output_dir         模型输出目录（必需）
+                     示例：./ft_models/ift/llama_ift_13b_jinan_1
+--lora_r             LoRA秩维度（默认：8）
+--lora_alpha         LoRA缩放系数（默认：16）
+--micro_batch_size   单设备批大小（默认：16）
+--num_epochs         训练轮次（默认：30）
+--cutoff_len         序列截断长度（默认：2048）
+--mask               启用观察掩码模式（默认：False）
+
+使用示例：
+# 基础训练
+python run_imitation_finetune.py \
+--base_model ./original_models/llama-13b-hf \
+--data_path imitation_data.json \
+--output_dir ./ft_models/ift/llama_13b_jinan
+
+注意事项：
+1. 需提前安装Peft、Transformers等依赖库
+2. 建议在配备24G+显存的GPU上运行13B模型
+3. 输出目录会自动创建，需确保有写入权限
+4. 使用--mask参数时会对观察状态进行掩码处理
+5. 最终保存的为LoRA适配器权重，需使用merge_lora.py合并
+"""
+
 import os
 import sys
 from typing import List
@@ -11,8 +52,8 @@ from peft import (
     prepare_model_for_int8_training,
     LoraConfig,
     get_peft_model,
-    get_peft_model_state_dict,
 )
+
 
 def train(
     # model/data params
@@ -61,15 +102,16 @@ def train(
     assert (
         base_model
     ), "Please specify a --base_model, e.g. --base_model='decapoda-research/llama-7b-hf'"
+
+    # 累积多少步的梯度后更新参数
     gradient_accumulation_steps = batch_size // micro_batch_size
 
     device_map = "auto"
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    ddp = world_size != 1
+    world_size = int(os.environ.get("WORLD_SIZE", 1))  # 总进程数
+    ddp = world_size != 1  # 是否启用分布式数据并行（Distributed Data Parallel）
     if ddp:
         device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
-        gradient_accumulation_steps = gradient_accumulation_steps // world_size
-
+        gradient_accumulation_steps //= world_size
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
@@ -104,7 +146,7 @@ def train(
             for line in lines:
                 if "Observation:" in line:
                     between_observation_and_thought = True
-                    #split the line and mask all but the first word
+                    # split the line and mask all but the first word
                     line = line.split()
                     line[1:] = [tokenizer.mask_token] * len(line[1:])
                     line = " ".join(line)
@@ -122,7 +164,7 @@ def train(
             truncation=True,
             max_length=cutoff_len,
             padding=False,
-            return_tensors=None
+            return_tensors=None,
         )
 
         if (
@@ -137,7 +179,9 @@ def train(
                 print("WARNING: input too long, truncating")
 
         masked_token_id = tokenizer.mask_token_id
-        ids = [-100 if token_id == 3695 else token_id for token_id in result["input_ids"]]
+        ids = [
+            -100 if token_id == 3695 else token_id for token_id in result["input_ids"]
+        ]
 
         result["labels"] = result["input_ids"].copy()
 
@@ -222,13 +266,30 @@ def train(
 
 def generate_prompt(data_point):
     # sorry about the formatting disaster gotta move fast
-    return f"""You are an expert in traffic management. You can use your knowledge of traffic commonsense to solve this traffic signal control tasks.
+    return f"""你是一个专业的水库调度专家，请根据当前水库状态和咸潮预测，优化每日放水量。
 
-### Instruction:
-{data_point["instruction"]}
+### 当前状态：
+储水量（万立方米）: 
+- S1: {data_point["w1"]}
+- S2: {data_point["w2"]}
+- S3: {data_point["w3"]}
 
-### Response:
-{data_point["output"]}"""
+### 咸潮预警：
+未来咸潮发生概率：
+{data_point["salinity_risk_forecast"]}
+
+### 操作目标：
+在满足以下约束条件下，确定今日最优放水量（x1, x2, x3）：
+1. S2/S3遭遇咸潮时仅允许放水（x≤0）
+2. 总储水量不得低于安全水位
+3. 最大化奖励函数值：RF(x1,x2,x3) = {data_point["reward_function"]}
+
+### 响应格式：
+放水量（万立方米/日）: 
+- S1: [x1值] 
+- S2: [x2值]
+- S3: [x3值]
+奖励值计算：r = [详细计算过程]{data_point["output"]}"""
 
 
 if __name__ == "__main__":
