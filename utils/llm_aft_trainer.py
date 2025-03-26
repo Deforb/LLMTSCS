@@ -909,10 +909,6 @@ class LLM_Inference:
 
             for i in range(len(state)):
                 # log statistic state
-                intersection = self.env.intersection_dict[
-                    self.env.list_intersection[i].inter_name
-                ]
-                roads = deepcopy(intersection["roads"])
                 statistic_state, statistic_state_incoming, mean_speed = (
                     get_state_detail(roads, self.env)
                 )
@@ -927,7 +923,9 @@ class LLM_Inference:
 
             prompts = []
             for s in current_states:
-                prompt = get_prompt(state2text(s), 'add')
+                prompt = get_prompt(
+                    state2text(s), self.dic_traffic_env_conf['DIC_REWARD_INFO']
+                )
                 prompt = (
                     prompt[0]['content']
                     + "\n\n### Instruction:\n"
@@ -957,88 +955,37 @@ class LLM_Inference:
                     previous_flag = i + 1
 
             fail_num = 0
-            vehicle_nums = self.get_vehicle_num(current_states)
 
-            for i, res in enumerate(responses):
-                res = res[len(prompts[i]) :]
-                signal_answer_pattern = r'<decision>(.*?)</decision>'
-                signals = re.findall(signal_answer_pattern, res)
-                signal_text = signals[-1] if len(signals) > 0 else "ETWT"
-                action_list.append(
-                    action2code(signal_text) if signal_text in four_phase_list else 0
+            for prompt, response in zip(prompts, responses):
+                action_response = response[len(prompt) :]
+                decisions: list[str] = re.findall(
+                    r'<decision>(.*?)</decision>', action_response
                 )
-                if len(signals) == 0 or signal_text not in four_phase_list:
-                    signal_text = "ETWT"
-                    if vehicle_nums[i] != 0:
-                        self.fail_logs.append(
-                            {"state": current_states[i], "response": res}
-                        )
-                        dump_json(self.fail_logs, self.fail_log_file)
-                        fail_num += 1
 
-                state_action_log[i][-1]["response"] = res
-                state_action_log[i][-1]["action"] = eight_phase_list[action_list[i]]
-
-            next_state, _, done, _ = self.env.step(action_list)
-            rewards = self.get_norm_reward(next_state)  # my reward
-
-            current_time = self.env.get_current_time()  # in seconds
-            state = next_state
-
-            # calculate logger results
-            total_reward += sum(rewards)
-            queue_length_inter = []
-            for inter in self.env.list_intersection:
-                queue_length_inter.append(
-                    sum(inter.dic_feature['lane_num_waiting_vehicle_in'])
-                )
-            queue_length_episode.append(sum(queue_length_inter))
-            print("Fail Num:", fail_num, "Queuing Vehicles:", sum(queue_length_episode))
-
-            # waiting time
-            waiting_times = []
-            for veh in self.env.waiting_vehicle_list:
-                waiting_times.append(self.env.waiting_vehicle_list[veh]['time'])
-            waiting_time_episode.append(
-                np.mean(waiting_times) if len(waiting_times) > 0 else 0.0
-            )
-
-        # wandb logger
-        vehicle_travel_times = {}
-        for inter in self.env.list_intersection:
-            arrive_left_times = inter.dic_vehicle_arrive_leave_time
-            for veh in arrive_left_times:
-                if "shadow" in veh:
-                    continue
-                enter_time = arrive_left_times[veh]["enter_time"]
-                leave_time = arrive_left_times[veh]["leave_time"]
-                if not np.isnan(enter_time):
-                    leave_time = (
-                        leave_time
-                        if not np.isnan(leave_time)
-                        else self.dic_traffic_env_conf["RUN_COUNTS"]
+                if not decisions:
+                    self.fail_logs.append(
+                        {"state": current_states[i], "response": action_response}
                     )
-                    if veh not in vehicle_travel_times:
-                        vehicle_travel_times[veh] = [leave_time - enter_time]
-                    else:
-                        vehicle_travel_times[veh].append(leave_time - enter_time)
+                    dump_json(self.fail_logs, self.fail_log_file)
+                    fail_num += 1
 
-        total_travel_time = np.mean(
-            [sum(vehicle_travel_times[veh]) for veh in vehicle_travel_times]
-        )
+                decision_text: str = decisions[-1]
+                decison = tuple(map(float, decision_text.split(',')))
+                reward: float = sum(decison)
+
+                total_reward += reward
+
+                self.data_buffer.append(
+                    {
+                        'query': prompt,
+                        'response': response,
+                        'decison': decison,
+                        'score': reward,
+                    }
+                )
 
         results = {
             "test_reward_over": total_reward,
-            "test_avg_queue_len_over": (
-                np.mean(queue_length_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "test_queuing_vehicle_num_over": (
-                np.sum(queue_length_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "test_avg_waiting_time_over": (
-                np.mean(waiting_time_episode) if len(queue_length_episode) > 0 else 0
-            ),
-            "test_avg_travel_time_over": total_travel_time,
         }
         logger.log(results)
         print("Test Round:", test_round, results)
