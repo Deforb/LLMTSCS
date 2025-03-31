@@ -1,0 +1,9 @@
+proj_name: 'LLM-Water'
+llm_model: 'llama_cgpr_13b_jinan_1'
+llm_path: './ft_models/merged/llama_cgpr_13b_jinan_1'
+new_max_tokens: 1024
+:num_rounds: 1
+:multi_process": True
+:workers: 1
+dataset: 'template'
+with_vllm: False

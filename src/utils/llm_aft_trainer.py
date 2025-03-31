@@ -11,16 +11,17 @@ import random
 import numpy as np
 import wandb
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import PreTrainedModel, PreTrainedTokenizer
 from peft import LoraConfig, get_peft_model
 from datasets import load_dataset
 from tqdm import tqdm
 import torch
 import vllm
 
-from utils.cityflow_env import CityFlowEnv
-from utils import config
-from utils.aft_rank_loss_utils import *
-from utils.my_utils import (
+from src.utils.cityflow_env import CityFlowEnv
+from src.utils import config
+from src.utils.aft_rank_loss_utils import *
+from src.utils.my_utils import (
     dump_json,
     get_state_detail,
     state2text,
@@ -846,14 +847,14 @@ class LLM_Inference:
 
         # init LLM
         llm_path = self.dic_agent_conf["LLM_PATH"]
-        self.llm_model = AutoModelForCausalLM.from_pretrained(
+        self.llm_model: PreTrainedModel = AutoModelForCausalLM.from_pretrained(
             llm_path,
             torch_dtype=torch.bfloat16,
             device_map=device_map,
         )
 
         # init tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        self.tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(
             llm_path, padding_side="left", padding=True
         )
         self.tokenizer.pad_token_id = 0
@@ -874,13 +875,6 @@ class LLM_Inference:
         copy_conf_file(self.dic_path, self.dic_agent_conf, self.dic_traffic_env_conf)
         copy_cityflow_file(self.dic_path, self.dic_traffic_env_conf)
 
-        self.env = CityFlowEnv(
-            path_to_log=self.dic_path["PATH_TO_WORK_DIRECTORY"],
-            path_to_work_directory=self.dic_path["PATH_TO_WORK_DIRECTORY"],
-            dic_traffic_env_conf=self.dic_traffic_env_conf,
-            dic_path=self.dic_path,
-        )
-        self.env.reset()
         self.initialize_llm()
 
     def test(self, logger, test_round):
@@ -908,10 +902,7 @@ class LLM_Inference:
             current_states = []
 
             for i in range(len(state)):
-                # log statistic state
-                statistic_state, statistic_state_incoming, mean_speed = (
-                    get_state_detail(roads, self.env)
-                )
+
                 state_action_log[i].append(
                     {
                         "state": statistic_state,

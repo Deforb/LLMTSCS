@@ -1,15 +1,15 @@
-from models.random_agent import RandomAgent
-from models.fixedtime_agent import FixedtimeAgent
-from models.maxpressure_agent import MaxPressureAgent
-from models.efficient_maxpressure_agent import EfficientMaxPressureAgent
-from models.mplight_agent import MPLightAgent
-from models.colight_agent import CoLightAgent
-from models.presslight_one import PressLightAgentOne
-from models.advanced_mplight_agent import AdvancedMPLightAgent
-from models.advanced_maxpressure_agent import AdvancedMaxPressureAgent
-from models.simple_dqn_one import SimpleDQNAgentOne
-from models.attendlight_agent import AttendLightAgent
-from models.chatgpt import (ChatGPTTLCS_Wait_Time_Forecast, ChatGPTTLCS_Commonsense)
+from src.models.random_agent import RandomAgent
+from src.models.fixedtime_agent import FixedtimeAgent
+from src.models.maxpressure_agent import MaxPressureAgent
+from src.models.efficient_maxpressure_agent import EfficientMaxPressureAgent
+from src.models.mplight_agent import MPLightAgent
+from src.models.colight_agent import CoLightAgent
+from src.models.presslight_one import PressLightAgentOne
+from src.models.advanced_mplight_agent import AdvancedMPLightAgent
+from src.models.advanced_maxpressure_agent import AdvancedMaxPressureAgent
+from src.models.simple_dqn_one import SimpleDQNAgentOne
+from src.models.attendlight_agent import AttendLightAgent
+from src.models.chatgpt import (ChatGPTTLCS_Wait_Time_Forecast, ChatGPTTLCS_Commonsense)
 
 DIC_AGENTS = {
     "Random": RandomAgent,
